@@ -1,0 +1,14 @@
+# Subdomain/vhost scanning
+Discovery/DNS/subdomains-top1million-20000.txt
+
+# Dirbusting — merge these into one bundled wordlist
+Discovery/Web-Content/combined_directories.txt
+Discovery/Web-Content/common-api-endpoints-mazen160.txt
+Discovery/Web-Content/graphql.txt
+Discovery/Web-Content/swagger.txt
+Discovery/Web-Content/reverse-proxy-inconsistencies.txt
+
+# Loaded dynamically when CMS is detected
+Discovery/Web-Content/CMS/CMS-Wordpress.txt
+Discovery/Web-Content/CMS/CMS-Joomla.txt
+Discovery/Web-Content/CMS/CMS-Drupal.txt

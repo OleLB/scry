@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>scry :: {{ target }}</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0d0d0d; color: #e0e0e0; font-size: 14px; line-height: 1.6; }
+  a { color: #58a6ff; }
+  h1 { font-size: 1.8rem; color: #fff; margin-bottom: 4px; }
+  h2 { font-size: 1.2rem; color: #ccc; border-bottom: 1px solid #333; padding-bottom: 6px; margin: 32px 0 12px; }
+  h3 { font-size: 1rem; color: #aaa; margin: 16px 0 8px; }
+  header { background: #111; padding: 24px 32px; border-bottom: 1px solid #222; }
+  header p { color: #888; font-size: 0.85rem; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px 32px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-bottom: 16px; }
+  th { background: #1a1a1a; color: #aaa; text-align: left; padding: 8px 12px; border-bottom: 1px solid #333; }
+  td { padding: 7px 12px; border-bottom: 1px solid #1e1e1e; vertical-align: top; word-break: break-all; }
+  tr:hover td { background: #141414; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 3px; font-size: 0.75rem; font-weight: 600; }
+  .badge-high { background: #3d1010; color: #ff6b6b; }
+  .badge-medium { background: #3d2a10; color: #ffaa55; }
+  .badge-low { background: #1a2d1a; color: #6bcf6b; }
+  .badge-info { background: #10243d; color: #58a6ff; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .stat-card { background: #111; border: 1px solid #2a2a2a; border-radius: 6px; padding: 16px; text-align: center; }
+  .stat-card .num { font-size: 2rem; font-weight: 700; color: #58a6ff; }
+  .stat-card .lbl { font-size: 0.75rem; color: #888; margin-top: 4px; }
+  .screenshots { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+  .screenshot-card { background: #111; border: 1px solid #2a2a2a; border-radius: 6px; overflow: hidden; }
+  .screenshot-card img { width: 100%; display: block; }
+  .screenshot-card .caption { padding: 8px 12px; font-size: 0.8rem; color: #888; word-break: break-all; }
+  .secret-row td:nth-child(3) { font-family: monospace; color: #ff6b6b; }
+  details summary { cursor: pointer; color: #58a6ff; padding: 4px 0; }
+  details[open] summary { margin-bottom: 8px; }
+  pre { background: #111; padding: 12px; border-radius: 4px; overflow-x: auto; font-size: 0.8rem; color: #ccc; }
+  .timeout-list { color: #ffaa55; padding-left: 16px; }
+  .timeout-list li { margin: 2px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>scry report</h1>
+  <p>Target: <strong>{{ target }}</strong> &nbsp;|&nbsp; Port: {{ port }} &nbsp;|&nbsp; Scan date: {{ scan_date }}</p>
+</header>
+<div class="container">
+
+  <!-- Executive Summary -->
+  <h2>Executive Summary</h2>
+  <div class="summary-grid">
+    <div class="stat-card"><div class="num">{{ subdomains | length }}</div><div class="lbl">Subdomains</div></div>
+    <div class="stat-card"><div class="num">{{ vhosts | length }}</div><div class="lbl">VHosts</div></div>
+    <div class="stat-card"><div class="num">{{ live_hosts | length }}</div><div class="lbl">Live Hosts</div></div>
+    <div class="stat-card"><div class="num">{{ ok_endpoints | length }}</div><div class="lbl">Endpoints</div></div>
+    <div class="stat-card"><div class="num">{{ forbidden_endpoints | length }}</div><div class="lbl">Forbidden</div></div>
+    <div class="stat-card"><div class="num">{{ broken_endpoints | length }}</div><div class="lbl">Broken</div></div>
+    <div class="stat-card"><div class="num">{{ secrets | length }}</div><div class="lbl">Secrets</div></div>
+    <div class="stat-card"><div class="num">{{ technologies | length }}</div><div class="lbl">Tech Findings</div></div>
+    <div class="stat-card"><div class="num">{{ header_alerts | length }}</div><div class="lbl">Header Alerts</div></div>
+    <div class="stat-card"><div class="num">{{ screenshots | length }}</div><div class="lbl">Screenshots</div></div>
+  </div>
+
+  {% if timeouts %}
+  <h2>Timeouts</h2>
+  <ul class="timeout-list">
+    {% for t in timeouts %}<li>{{ t }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+
+  <!-- Live Hosts -->
+  {% if live_hosts %}
+  <h2>Live Hosts</h2>
+  <table>
+    <thead><tr><th>URL</th><th>Status</th><th>Title</th><th>Server</th><th>Size</th></tr></thead>
+    <tbody>
+    {% for h in live_hosts %}
+    <tr>
+      <td><a href="{{ h.final_url }}" target="_blank">{{ h.final_url }}</a></td>
+      <td>{{ h.status }}</td>
+      <td>{{ h.title | default(value="-") }}</td>
+      <td>{{ h.server | default(value="-") }}</td>
+      <td>{{ h.content_length | default(value="-") }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <!-- Subdomains -->
+  {% if subdomains %}
+  <h2>Subdomains ({{ subdomains | length }})</h2>
+  <table>
+    <thead><tr><th>Host</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for s in subdomains %}
+    <tr><td>{{ s.host }}</td><td>{{ s.status }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <!-- Virtual Hosts -->
+  {% if vhosts %}
+  <h2>Virtual Hosts ({{ vhosts | length }})</h2>
+  <table>
+    <thead><tr><th>Host</th><th>Status</th><th>Size</th></tr></thead>
+    <tbody>
+    {% for v in vhosts %}
+    <tr><td>{{ v.host }}</td><td>{{ v.status }}</td><td>{{ v.size }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <!-- Endpoints (2xx / 3xx) -->
+  {% if ok_endpoints %}
+  <h2>Endpoints ({{ ok_endpoints | length }})</h2>
+  <table>
+    <thead><tr><th>URL</th><th>Status</th><th>Size</th><th>Words</th><th>Redirect</th></tr></thead>
+    <tbody>
+    {% for e in ok_endpoints %}
+    <tr>
+      <td><a href="{{ e.url }}" target="_blank">{{ e.url }}</a></td>
+      <td>{{ e.status }}</td>
+      <td>{{ e.size }}</td>
+      <td>{{ e.words }}</td>
+      <td>{% if e.redirect_to %}<a href="{{ e.redirect_to }}" target="_blank">{{ e.redirect_to }}</a>{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <!-- Forbidden (4xx) -->
+  {% if forbidden_endpoints %}
+  <h2>Forbidden ({{ forbidden_endpoints | length }})</h2>
+  <table>
+    <thead><tr><th>URL</th><th>Status</th><th>Size</th><th>Words</th></tr></thead>
+    <tbody>
+    {% for e in forbidden_endpoints %}
+    <tr>
+      <td><a href="{{ e.url }}" target="_blank">{{ e.url }}</a></td>
+      <td>{{ e.status }}</td>
+      <td>{{ e.size }}</td>
+      <td>{{ e.words }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <!-- Broken Endpoints (5xx) -->
+  {% if broken_endpoints %}
+  <h2>Broken Endpoints ({{ broken_endpoints | length }})</h2>
+  <table>
+    <thead><tr><th>URL</th><th>Status</th><th>Size</th><th>Words</th></tr></thead>
+    <tbody>
+    {% for e in broken_endpoints %}
+    <tr>
+      <td><a href="{{ e.url }}" target="_blank">{{ e.url }}</a></td>
+      <td>{{ e.status }}</td>
+      <td>{{ e.size }}</td>
+      <td>{{ e.words }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <!-- Secrets -->
+  {% if secrets %}
+  <h2>Secrets Found ({{ secrets | length }})</h2>
+  <table>
+    <thead><tr><th>Pattern</th><th>URL</th><th>Snippet</th></tr></thead>
+    <tbody>
+    {% for sec in secrets %}
+    <tr class="secret-row">
+      <td>{{ sec.pattern }}</td>
+      <td><a href="{{ sec.url }}" target="_blank">{{ sec.url }}</a></td>
+      <td>{{ sec.snippet }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <!-- Header Alerts -->
+  {% if header_alerts %}
+  <h2>Header Alerts ({{ header_alerts | length }})</h2>
+  <table>
+    <thead><tr><th>Severity</th><th>Host</th><th>Finding</th></tr></thead>
+    <tbody>
+    {% for a in header_alerts %}
+    <tr>
+      <td>
+        {% if a.severity == "High" %}<span class="badge badge-high">High</span>
+        {% elif a.severity == "Medium" %}<span class="badge badge-medium">Medium</span>
+        {% elif a.severity == "Low" %}<span class="badge badge-low">Low</span>
+        {% else %}<span class="badge badge-info">Info</span>{% endif %}
+      </td>
+      <td>{{ a.host }}</td>
+      <td>{{ a.message }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <!-- Technology Stack -->
+  {% if technologies %}
+  <h2>Technology Stack ({{ technologies | length }})</h2>
+  <table>
+    <thead><tr><th>Host</th><th>Technology</th><th>Version</th></tr></thead>
+    <tbody>
+    {% for t in technologies %}
+    <tr>
+      <td>{{ t.host }}</td>
+      <td>{{ t.tech }}</td>
+      <td>{{ t.version | default(value="-") }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <!-- Screenshots -->
+  {% if screenshots %}
+  <h2>Screenshots ({{ screenshots | length }})</h2>
+  <div class="screenshots">
+    {% for shot in screenshots %}
+    <div class="screenshot-card">
+      <a href="{{ shot.url }}" target="_blank" rel="noopener noreferrer">
+        <img src="{{ shot.data_uri }}" alt="{{ shot.host }}" loading="lazy">
+      </a>
+      <div class="caption">{{ shot.host }}</div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Raw URLs -->
+  {% if urls %}
+  <h2>Crawled URLs</h2>
+  <details>
+    <summary>{{ urls | length }} URLs — click to expand</summary>
+    <pre>{% for u in urls %}{{ u.url }}
+{% endfor %}</pre>
+  </details>
+  {% endif %}
+
+</div>
+</body>
+</html>
