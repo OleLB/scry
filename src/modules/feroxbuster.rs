@@ -87,40 +87,70 @@ pub async fn run(
     skip_ferox: &Arc<AtomicBool>,
     tx: &Sender,
 ) -> anyhow::Result<()> {
+    let ssl_error = do_run(config, target_url, wordlist_path, detected_techs, skip_ferox, tx, false).await?;
+    if ssl_error {
+        eprintln!("[feroxbuster] SSL error on {} — retrying with --insecure", target_url);
+        do_run(config, target_url, wordlist_path, detected_techs, skip_ferox, tx, true).await?;
+    }
+    Ok(())
+}
+
+/// Run feroxbuster once. Returns `true` if an SSL error was detected (caller should retry
+/// with `insecure = true`), `false` if the run completed normally.
+async fn do_run(
+    config: &Config,
+    target_url: &str,
+    wordlist_path: &Path,
+    detected_techs: &[String],
+    skip_ferox: &Arc<AtomicBool>,
+    tx: &Sender,
+    insecure: bool,
+) -> anyhow::Result<bool> {
     let wordlist = wordlist_path.to_string_lossy();
     let using_seclists = config.wordlist.is_none() && wordlist::seclists_available(&config.seclists_base);
     let exts = build_extensions(detected_techs, using_seclists);
 
-    if exts.is_empty() {
-        eprintln!("[feroxbuster] {} — no extensions (relying on wordlist)", target_url);
-    } else {
-        eprintln!("[feroxbuster] {} — extensions: {}", target_url, exts.join(","));
+    let threads_str = config.threads.to_string();
+    let exts_str = exts.join(",");
+    if config.debug {
+        let mut dbg = format!(
+            "[debug] feroxbuster --url {} --wordlist {} --json --silent --no-state --timeout 10 --threads {} --filter-status 404",
+            target_url, wordlist, threads_str
+        );
+        if !exts.is_empty() { dbg.push_str(&format!(" --extensions {}", exts_str)); }
+        if insecure { dbg.push_str(" --insecure"); }
+        eprintln!("{}", dbg);
     }
-    eprintln!("[feroxbuster] press Ctrl+C once to skip feroxbuster and continue the scan");
 
     let mut cmd = make_command("feroxbuster", &config.tool_paths);
     cmd.args([
-        "--url",
-        target_url,
-        "--wordlist",
-        &wordlist,
-        "--json",
-        "--silent",
-        "--no-state",
-        "--timeout",
-        "10",
-        "--threads",
-        &config.threads.to_string(),
-        "--filter-status",
-        "404",
+        "--url", target_url, "--wordlist", &wordlist,
+        "--json", "--silent", "--no-state", "--insecure",
+        "--timeout", "10", "--threads", &threads_str, "--filter-status", "404",
     ]);
     if !exts.is_empty() {
-        cmd.args(["--extensions", &exts.join(",")]);
+        cmd.args(["--extensions", &exts_str]);
     }
 
-    let mut child = cmd.stdout(Stdio::piped()).stderr(Stdio::null()).spawn()?;
+    let mut child = cmd
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
 
     let mut stdout = child.stdout.take().unwrap();
+
+    // Collect stderr in background so we can detect SSL errors after the run.
+    let stderr_task = {
+        let stderr = child.stderr.take().unwrap();
+        tokio::spawn(async move {
+            let mut buf = Vec::new();
+            tokio::io::AsyncReadExt::read_to_end(
+                &mut tokio::io::BufReader::new(stderr),
+                &mut buf,
+            ).await.ok();
+            buf
+        })
+    };
 
     // feroxbuster --json --silent writes JSON objects concatenated without
     // newlines, so line-based reading doesn't work. Track brace depth to
@@ -167,6 +197,9 @@ pub async fn run(
                     depth -= 1;
                     json_buf.push(b);
                     if depth == 0 {
+                        if config.debug {
+                            eprintln!("[debug|feroxbuster] {}", String::from_utf8_lossy(&json_buf));
+                        }
                         if let Ok(r) = serde_json::from_slice::<FeroxResult>(&json_buf) {
                             if r.kind == "response" {
                                 let redirect_to = if (300..400).contains(&r.status) {
@@ -206,5 +239,17 @@ pub async fn run(
     }
 
     child.wait().await.ok();
-    Ok(())
+
+    let stderr_bytes = stderr_task.await.unwrap_or_default();
+    if config.debug && !stderr_bytes.is_empty() {
+        eprintln!("[debug|feroxbuster stderr] {}", String::from_utf8_lossy(&stderr_bytes));
+    }
+
+    // Detect SSL errors so the caller can retry with --insecure
+    let ssl_error = !insecure && {
+        let s = String::from_utf8_lossy(&stderr_bytes);
+        s.contains("SSL errors") || s.contains("ssl error") || s.contains("--insecure")
+    };
+
+    Ok(ssl_error)
 }

@@ -29,11 +29,21 @@ pub async fn run(
     store: &SharedStore,
     tx: &Sender,
 ) -> anyhow::Result<()> {
-    // Build hosts list: base domain + all discovered subdomains
+    // Build hosts list: base domain + all discovered subdomains + vhosts.
+    // Use full URLs (scheme + port) so httpx probes the right port.
+    // Vhosts work here when the caller has added them to /etc/hosts; httpx
+    // fails gracefully (no output) for any entry it cannot resolve.
     let hosts: Vec<String> = {
         let s = store.lock().await;
-        let mut list: Vec<String> = s.subdomains.iter().map(|f| f.host.clone()).collect();
-        list.push(config.target.clone());
+        let mut list: Vec<String> = s
+            .subdomains
+            .iter()
+            .map(|f| config.url_for(&f.host))
+            .collect();
+        for vhost in &s.vhosts {
+            list.push(config.url_for(&vhost.host));
+        }
+        list.push(config.target_url());
         list
     };
 
@@ -44,31 +54,27 @@ pub async fn run(
     tmp.flush()?;
     let tmp_path = tmp.path().to_string_lossy().into_owned();
 
+    let threads_str = config.threads.to_string();
+    let args = [
+        "-list", &tmp_path, "-json", "-silent", "-title",
+        "-status-code", "-content-length", "-tech-detect",
+        "-include-response-header", "-follow-redirects",
+        "-threads", &threads_str, "-timeout", "10",
+    ];
+    if config.debug {
+        eprintln!("[debug] httpx {}", args.join(" "));
+    }
     let mut child = make_command("httpx", &config.tool_paths)
-        .args([
-            "-list",
-            &tmp_path,
-            "-json",
-            "-silent",
-            "-title",
-            "-status-code",
-            "-content-length",
-            "-tech-detect",
-            "-include-response-header",
-            "-follow-redirects",
-            "-threads",
-            &config.threads.to_string(),
-            "-timeout",
-            "10",
-        ])
+        .args(&args)
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(if config.debug { Stdio::inherit() } else { Stdio::null() })
         .spawn()?;
 
     let stdout = child.stdout.take().unwrap();
     let mut lines = BufReader::new(stdout).lines();
 
     while let Some(line) = lines.next_line().await? {
+        if config.debug { eprintln!("[debug|httpx] {}", line); }
         if line.trim().is_empty() {
             continue;
         }

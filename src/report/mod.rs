@@ -52,10 +52,15 @@ struct SecretView {
 }
 
 #[derive(Serialize)]
-struct TechView {
-    host: String,
+struct TechEntryView {
     tech: String,
     version: Option<String>,
+}
+
+#[derive(Serialize)]
+struct TechGroupView {
+    host: String,
+    techs: Vec<TechEntryView>,
 }
 
 #[derive(Serialize)]
@@ -108,9 +113,12 @@ pub fn generate(store: &FindingStore, config: &Config) -> anyhow::Result<PathBuf
         })
         .collect();
 
+    let vhost_hosts: std::collections::HashSet<&str> =
+        store.vhosts.iter().map(|v| v.host.as_str()).collect();
     let subdomains: Vec<SubdomainView> = store
         .subdomains
         .iter()
+        .filter(|s| !vhost_hosts.contains(s.host.as_str()))
         .map(|s| SubdomainView { host: s.host.clone(), status: s.status })
         .collect();
 
@@ -150,15 +158,18 @@ pub fn generate(store: &FindingStore, config: &Config) -> anyhow::Result<PathBuf
         })
         .collect();
 
-    let technologies: Vec<TechView> = store
-        .technologies
-        .iter()
-        .map(|t| TechView {
-            host: t.host.clone(),
-            tech: t.tech.clone(),
-            version: t.version.clone(),
-        })
-        .collect();
+    let tech_groups: Vec<TechGroupView> = {
+        let mut map: std::collections::BTreeMap<String, Vec<TechEntryView>> =
+            std::collections::BTreeMap::new();
+        for t in &store.technologies {
+            map.entry(t.host.clone())
+                .or_default()
+                .push(TechEntryView { tech: t.tech.clone(), version: t.version.clone() });
+        }
+        map.into_iter()
+            .map(|(host, techs)| TechGroupView { host, techs })
+            .collect()
+    };
 
     let header_alerts: Vec<HeaderAlertView> = store
         .header_alerts
@@ -198,7 +209,7 @@ pub fn generate(store: &FindingStore, config: &Config) -> anyhow::Result<PathBuf
     ctx.insert("forbidden_endpoints", &forbidden_endpoints);
     ctx.insert("broken_endpoints", &broken_endpoints);
     ctx.insert("secrets", &secrets);
-    ctx.insert("technologies", &technologies);
+    ctx.insert("tech_groups", &tech_groups);
     ctx.insert("header_alerts", &header_alerts);
     ctx.insert("screenshots", &screenshots);
     ctx.insert("urls", &urls);

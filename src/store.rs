@@ -112,6 +112,9 @@ pub async fn run_store(mut rx: Receiver, store: SharedStore) {
                         s.live_hosts.push(host);
                     }
                     FindingEvent::NewEndpoint { url, status, size, words, redirect_to } => {
+                        if url.ends_with(".js") {
+                            s.js_urls.push(url.clone());
+                        }
                         s.endpoints.push(EndpointFinding { url, status, size, words, redirect_to });
                     }
                     FindingEvent::NewUrl { url, source } => {

@@ -22,19 +22,19 @@ struct WhatWebPlugin {
 }
 
 pub async fn run(config: &Config, target_url: &str, tx: &Sender) -> anyhow::Result<()> {
+    let args = ["--log-json=-", "--no-errors", "--quiet", target_url];
+    if config.debug {
+        eprintln!("[debug] whatweb {}", args.join(" "));
+    }
     let output = make_command("whatweb", &config.tool_paths)
-        .args([
-            "--log-json=-",
-            "--no-errors",
-            "--quiet",
-            target_url,
-        ])
+        .args(&args)
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(if config.debug { Stdio::inherit() } else { Stdio::null() })
         .output()
         .await?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+    if config.debug { eprintln!("[debug|whatweb] {}", stdout.trim()); }
     let text = stdout.trim();
     if text.is_empty() {
         return Ok(());

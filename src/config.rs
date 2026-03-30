@@ -51,6 +51,10 @@ pub struct Config {
     #[arg(short, long)]
     pub verbose: bool,
 
+    /// Print all external tool commands and their raw output
+    #[arg(short = 'd', long)]
+    pub debug: bool,
+
     /// Custom tool paths loaded from ~/.config/scry/scry.conf
     #[arg(skip)]
     pub tool_paths: ToolPaths,
@@ -72,12 +76,15 @@ impl Config {
     }
 
     pub fn target_url(&self) -> String {
-        if (self.port == 443 && self.scheme() == "https")
-            || (self.port == 80 && self.scheme() == "http")
-        {
-            format!("{}://{}", self.scheme(), self.target)
+        self.url_for(&self.target.clone())
+    }
+
+    pub fn url_for(&self, host: &str) -> String {
+        let scheme = self.scheme();
+        if (self.port == 443 && scheme == "https") || (self.port == 80 && scheme == "http") {
+            format!("{}://{}", scheme, host)
         } else {
-            format!("{}://{}:{}", self.scheme(), self.target, self.port)
+            format!("{}://{}:{}", scheme, host, self.port)
         }
     }
 

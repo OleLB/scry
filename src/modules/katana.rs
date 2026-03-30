@@ -28,28 +28,24 @@ struct KatanaResponse {
 }
 
 pub async fn run(config: &Config, target_url: &str, tx: &Sender) -> anyhow::Result<()> {
+    let args = [
+        "-u", target_url, "-jsonl", "-silent",
+        "-depth", "3", "-js-crawl", "-known-files", "all", "-timeout", "10",
+    ];
+    if config.debug {
+        eprintln!("[debug] katana {}", args.join(" "));
+    }
     let mut child = make_command("katana", &config.tool_paths)
-        .args([
-            "-u",
-            target_url,
-            "-jsonl",
-            "-silent",
-            "-depth",
-            "3",
-            "-js-crawl",
-            "-known-files",
-            "all",
-            "-timeout",
-            "10",
-        ])
+        .args(&args)
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(if config.debug { Stdio::inherit() } else { Stdio::null() })
         .spawn()?;
 
     let stdout = child.stdout.take().unwrap();
     let mut lines = BufReader::new(stdout).lines();
 
     while let Some(line) = lines.next_line().await? {
+        if config.debug { eprintln!("[debug|katana] {}", line); }
         if line.trim().is_empty() {
             continue;
         }

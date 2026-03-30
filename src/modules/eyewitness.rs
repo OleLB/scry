@@ -21,21 +21,19 @@ pub async fn run(config: &Config, live_urls: &[String], tx: &Sender) -> anyhow::
     let dest = &config.screenshot_dir;
     std::fs::create_dir_all(dest)?;
 
+    let tmp_path = tmp.path().to_string_lossy().into_owned();
+    let dest_str = dest.to_string_lossy().into_owned();
+    let args = [
+        "--web", "-f", &tmp_path, "-d", &dest_str,
+        "--no-prompt", "--timeout", "10", "--threads", "5",
+    ];
+    if config.debug {
+        eprintln!("[debug] EyeWitness.py {}", args.join(" "));
+    }
     let mut child = make_command("EyeWitness.py", &config.tool_paths)
-        .args([
-            "--web",
-            "-f",
-            &tmp.path().to_string_lossy(),
-            "-d",
-            &dest.to_string_lossy(),
-            "--no-prompt",
-            "--timeout",
-            "10",
-            "--threads",
-            "5",
-        ])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .args(&args)
+        .stdout(if config.debug { Stdio::inherit() } else { Stdio::null() })
+        .stderr(if config.debug { Stdio::inherit() } else { Stdio::null() })
         .spawn()?;
 
     child.wait().await?;

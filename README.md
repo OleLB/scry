@@ -1,6 +1,14 @@
 # scry
 
-A single-binary Rust CLI that orchestrates external security tools across three sequential recon phases, streams findings in real time, and generates a self-contained HTML report. Built for CTF competitions and penetration testing.
+A very light weight web scanner written in rust. This is NOT a vulnerability scanner, but rather a tool to quickly map out the structure and content of a website. The tool will show any discoveries as they are made and will also summarize all findings in an html report with screenshots of each discovered uniqe URL. The tool is made for CTF challenges.
+The tool will search for:
+    subdomains
+    vhosts
+    endpoints
+    technology fingerprints
+    passwords, api keys and other sensitive info left in .js files
+
+
 
 ## Features
 

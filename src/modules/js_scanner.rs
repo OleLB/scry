@@ -104,9 +104,10 @@ fn redact(matched: &str) -> String {
     format!("{}...{}", visible, tail)
 }
 
-pub async fn run(js_urls: Vec<String>, tx: &Sender) -> anyhow::Result<()> {
+pub async fn run(js_urls: Vec<String>, tx: &Sender, debug: bool) -> anyhow::Result<()> {
     let scanner = JsScanner::new();
     for url in &js_urls {
+        if debug { eprintln!("[debug] js_scanner fetching {}", url); }
         scanner.scan_url(url, tx).await;
     }
     Ok(())

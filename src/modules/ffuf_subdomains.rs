@@ -10,34 +10,42 @@ use crate::wordlist;
 
 pub async fn run(config: &Config, tx: &Sender) -> anyhow::Result<()> {
     let (wordlist_path, _tmp) = get_wordlist_path(config);
-    let url_pattern = format!("https://FUZZ.{}", config.target);
+    let url_pattern = format!("{}://FUZZ.{}:{}", config.scheme(), config.target, config.port);
+    let wordlist_arg = format!("{}:FUZZ", wordlist_path);
 
+    if config.debug {
+        eprintln!("[debug] ffuf (subdomains) -w {} -u {}", wordlist_arg, url_pattern);
+    }
     let mut child = make_command("ffuf", &config.tool_paths)
-        .args([
-            "-w",
-            &wordlist_path,
-            "-u",
-            &url_pattern,
-            "-mc",
-            "200,204,301,302,307,401,403",
-            "-t",
-            "100",
-            "-s",
-        ])
+        .args(["-w", &wordlist_arg, "-u", &url_pattern])
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(if config.debug { Stdio::inherit() } else { Stdio::piped() })
         .spawn()?;
 
     let stdout = child.stdout.take().unwrap();
+    // Drain piped stderr (non-debug) so ffuf doesn't block on a full pipe buffer
+    if !config.debug {
+        let stderr = child.stderr.take().unwrap();
+        tokio::spawn(async move {
+            let mut buf = tokio::io::BufReader::new(stderr);
+            let mut sink = Vec::new();
+            let _ = tokio::io::AsyncReadExt::read_to_end(&mut buf, &mut sink).await;
+        });
+    }
+
     let mut lines = BufReader::new(stdout).lines();
 
+    // ffuf v2.x appends ", Duration: Xms" before the closing bracket
     let re = Regex::new(
-        r"^(\S+)\s+\[Status: (\d+), Size: (\d+), Words: (\d+), Lines: (\d+)\]",
+        r"^(\S+)\s+\[Status: (\d+), Size: (\d+), Words: (\d+), Lines: (\d+)",
     )
     .unwrap();
 
     while let Some(line) = lines.next_line().await? {
-        if let Some(caps) = re.captures(&line) {
+        if config.debug { eprintln!("[debug|ffuf_subdomains] {}", line); }
+        let line = line.trim_matches('\r');
+        let line = strip_ansi(line);
+        if let Some(caps) = re.captures(line.as_ref()) {
             let host = format!("{}.{}", &caps[1], config.target);
             let status: u16 = caps[2].parse().unwrap_or(0);
             tx.send(FindingEvent::NewSubdomain { host, status }).ok();
@@ -47,6 +55,15 @@ pub async fn run(config: &Config, tx: &Sender) -> anyhow::Result<()> {
     child.wait().await?;
     // _tmp drops here, cleaning up the bundled-wordlist tempfile if one was created
     Ok(())
+}
+
+fn strip_ansi(s: &str) -> std::borrow::Cow<'_, str> {
+    if !s.contains('\x1b') {
+        return std::borrow::Cow::Borrowed(s);
+    }
+    static RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let re = RE.get_or_init(|| regex::Regex::new(r"\x1b\[[0-9;]*[A-Za-z]").unwrap());
+    std::borrow::Cow::Owned(re.replace_all(s, "").into_owned())
 }
 
 /// Returns (path_string, optional_tempfile_handle).

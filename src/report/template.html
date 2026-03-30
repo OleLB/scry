@@ -31,7 +31,7 @@
   .screenshot-card { background: #111; border: 1px solid #2a2a2a; border-radius: 6px; overflow: hidden; }
   .screenshot-card img { width: 100%; display: block; }
   .screenshot-card .caption { padding: 8px 12px; font-size: 0.8rem; color: #888; word-break: break-all; }
-  .secret-row td:nth-child(3) { font-family: monospace; color: #ff6b6b; }
+  .secret-row td:nth-child(3) { font-family: monospace; color: #ff6b6b; font-size: 0.9rem; word-break: break-all; white-space: pre-wrap; }
   details summary { cursor: pointer; color: #58a6ff; padding: 4px 0; }
   details[open] summary { margin-bottom: 8px; }
   pre { background: #111; padding: 12px; border-radius: 4px; overflow-x: auto; font-size: 0.8rem; color: #ccc; }
@@ -56,7 +56,7 @@
     <div class="stat-card"><div class="num">{{ forbidden_endpoints | length }}</div><div class="lbl">Forbidden</div></div>
     <div class="stat-card"><div class="num">{{ broken_endpoints | length }}</div><div class="lbl">Broken</div></div>
     <div class="stat-card"><div class="num">{{ secrets | length }}</div><div class="lbl">Secrets</div></div>
-    <div class="stat-card"><div class="num">{{ technologies | length }}</div><div class="lbl">Tech Findings</div></div>
+    <div class="stat-card"><div class="num">{{ tech_groups | length }}</div><div class="lbl">Tech Hosts</div></div>
     <div class="stat-card"><div class="num">{{ header_alerts | length }}</div><div class="lbl">Header Alerts</div></div>
     <div class="stat-card"><div class="num">{{ screenshots | length }}</div><div class="lbl">Screenshots</div></div>
   </div>
@@ -168,23 +168,6 @@
   </table>
   {% endif %}
 
-  <!-- Secrets -->
-  {% if secrets %}
-  <h2>Secrets Found ({{ secrets | length }})</h2>
-  <table>
-    <thead><tr><th>Pattern</th><th>URL</th><th>Snippet</th></tr></thead>
-    <tbody>
-    {% for sec in secrets %}
-    <tr class="secret-row">
-      <td>{{ sec.pattern }}</td>
-      <td><a href="{{ sec.url }}" target="_blank">{{ sec.url }}</a></td>
-      <td>{{ sec.snippet }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  {% endif %}
-
   <!-- Header Alerts -->
   {% if header_alerts %}
   <h2>Header Alerts ({{ header_alerts | length }})</h2>
@@ -208,20 +191,22 @@
   {% endif %}
 
   <!-- Technology Stack -->
-  {% if technologies %}
-  <h2>Technology Stack ({{ technologies | length }})</h2>
+  {% if tech_groups %}
+  <h2>Technology Stack</h2>
+  {% for group in tech_groups %}
+  <h3>{{ group.host }}</h3>
   <table>
-    <thead><tr><th>Host</th><th>Technology</th><th>Version</th></tr></thead>
+    <thead><tr><th>Technology</th><th>Version</th></tr></thead>
     <tbody>
-    {% for t in technologies %}
+    {% for t in group.techs %}
     <tr>
-      <td>{{ t.host }}</td>
       <td>{{ t.tech }}</td>
       <td>{{ t.version | default(value="-") }}</td>
     </tr>
     {% endfor %}
     </tbody>
   </table>
+  {% endfor %}
   {% endif %}
 
   <!-- Screenshots -->
@@ -246,6 +231,26 @@
     <summary>{{ urls | length }} URLs — click to expand</summary>
     <pre>{% for u in urls %}{{ u.url }}
 {% endfor %}</pre>
+  </details>
+  {% endif %}
+
+  <!-- Secrets (collapsed by default — may contain false positives) -->
+  {% if secrets %}
+  <h2>Secrets Found ({{ secrets | length }})</h2>
+  <details>
+    <summary>Expand to view — results may contain false positives</summary>
+    <table>
+      <thead><tr><th>Pattern</th><th>URL</th><th>Snippet</th></tr></thead>
+      <tbody>
+      {% for sec in secrets %}
+      <tr class="secret-row">
+        <td>{{ sec.pattern }}</td>
+        <td><a href="{{ sec.url }}" target="_blank">{{ sec.url }}</a></td>
+        <td>{{ sec.snippet }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
   </details>
   {% endif %}
 
