@@ -1,6 +1,6 @@
 # scry
 
-A very light weight web scanner written in rust. This is NOT a vulnerability scanner, but rather a tool to quickly map out the structure and content of a website. The tool will show any discoveries as they are made and will also summarize all findings in an html report with screenshots of each discovered uniqe URL. The tool is made for CTF challenges.
+A very light weight web scanner written in rust. This is NOT a vulnerability scanner, but rather a tool to quickly map out the structure and content of a website. The tool will display any discoveries in real time as they are made and will also summarize all findings in an html report with screenshots of each discovered uniqe URL. The tool is made for CTF challenges.
 The tool will search for:
     subdomains
     vhosts
