@@ -13,7 +13,7 @@ The tool will search for:
 ## Features
 
 - Three-phase recon pipeline with concurrent module execution per phase
-- Real-time finding stream via broadcast event bus — results print as tools run
+- Real-time finding stream via broadcast event bus, results print as tools run
 - Graceful Ctrl+C handling: first press skips feroxbuster and continues; second cancels and writes a partial report
 - Self-contained HTML report with base64-embedded screenshots
 - SecLists integration with automatic fallback to bundled wordlist
