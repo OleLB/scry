@@ -38,7 +38,7 @@ All tools must be in `PATH` (or mapped in `~/.config/scry/scry.conf`). scry will
 git clone <repo>
 cd scry
 cargo build --release
-# Binary at target/release/scry
+# Binary will be at ./target/release/scry
 ```
 
 ## Usage
